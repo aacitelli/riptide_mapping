@@ -3,6 +3,7 @@
 import rospy
 from vision_msgs.msg import Detection3DArray
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from gazebo_msgs.msg import ModelStates
 from Pose import Pose
 
 # TODO: Define our representation.
@@ -18,29 +19,38 @@ currentPositions = {
 # Takes a Detection3DArray in as the message
 # Detection3DArray Docs @ http://docs.ros.org/en/lunar/api/vision_msgs/html/msg/Detection3DArray.html
 def dopeCallback(msg):
+    return # Not doing anything for DOPE on this branch
 
-    # TODO: Convert DOPE's positions to world positions
-    # Iterate through Detection3DArray to get individual Detection3D objects
-    # Detection3D Docs @ http://docs.ros.org/en/lunar/api/vision_msgs/html/msg/Detection3D.html
-    for detectionMsg in msg:
-        bbox = detectionMsg.bbox # Type: http://docs.ros.org/en/noetic/api/vision_msgs/html/msg/BoundingBox3D.html
+# Handle /gazebo/model_states data
+def gazeboCallback(msg):
+    for i in range(len(msg.name)):
 
-    # TODO: Merge the changes from DOPE into our representation
-    # Will need to do a little math to figure out the best way to update it.
-    # We don't want to straight-up overwrite it every time and ignore all our previous data points, but we also know new data is more accurate so we want to use it.
+        # Filter out anything that isn't a prop we're interested in 
+        if "world" in msg.name[i] or "lake" in msg.name[i] or "puddles" in msg.name[i]:
+            continue
 
-    # TODO: Publish every object's relevant points 
-    gatePub.publish()
+        # We assume what we have left is a prop and we will be publishing *something*
+        obj = PoseWithCovarianceStamped()
+        obj.pose.pose = msg.pose[i]
+        now = rospy.get_rostime()
+        obj.header.stamp.secs = now.secs
+        obj.header.stamp.nsecs = now.nsecs
 
-''' Kept as an example of what a callback that does some processing looks like, can be deleted once we get our feet under us 
-def bboxCb(msg):
-    objects = {}
-    for b in msg.bounding_boxes:
-        if not objects.has_key(b.Class) or b.probability > objects[b.Class].probability:
-            objects[b.Class] = b
-    msg.bounding_boxes = objects.values()
-    bboxPub.publish(msg)
-'''
+        # Actually publish, dependent on what the name was
+        if (msg.name[i] == "gate"):
+            gatePub.publish(obj)
+        elif (msg.name[i] == "cutie"):
+            cutiePub.publish(obj)
+        elif (msg.name[i] == "buoy"):
+            buoyPub.publish(obj)
+        elif (msg.name[i] == "markers"):
+            markersPub.publish(obj)
+        elif (msg.name[i] == "torpedoes"):
+            torpedoesPub.publish(obj)
+        elif (msg.name[i] == "retrieve"):
+            retrievePub.publish(obj)
+        else:
+            rospy.logerr("MAPPING ERROR: Tried to process something that isn't one of our props, but we haven't blacklisted! Object: " + msg.name[i])
 
 if __name__ == '__main__':
 
@@ -51,9 +61,11 @@ if __name__ == '__main__':
     # TODO: Register all our subscribers and publishers 
     # Subscribers
     rospy.Subscriber("/dope/detected_objects", Detection3DArray, dopeCallback)
+    rospy.Subscriber("/gazebo/model_states", ModelStates, gazeboCallback)
 
     # Publishers
     gatePub = rospy.Publisher("mapping/gate", PoseWithCovarianceStamped, queue_size=1) # Gate task
+    cutiePub = rospy.Publisher("mapping/cutie", PoseWithCovarianceStamped, queue_size=1) # Cutie
     buoyPub = rospy.Publisher("mapping/buoy", PoseWithCovarianceStamped, queue_size=1) # Buoy task 
     markersPub = rospy.Publisher("mapping/markers", PoseWithCovarianceStamped, queue_size=1) # Markers task
     torpedoesPub = rospy.Publisher("mapping/torpedoes", PoseWithCovarianceStamped, queue_size=1) # Manipulation/torpedoes task 
