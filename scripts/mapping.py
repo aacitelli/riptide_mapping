@@ -3,8 +3,10 @@
 import rospy
 from vision_msgs.msg import Detection3DArray
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import TransformStamped
 from gazebo_msgs.msg import ModelStates
 from Pose import Pose
+import tf
 
 # TODO: Define our representation.
 currentPositions = {
@@ -51,6 +53,18 @@ def gazeboCallback(msg):
             retrievePub.publish(obj)
         else:
             rospy.logerr("MAPPING ERROR: Tried to process something that isn't one of our props, but we haven't blacklisted! Object: " + msg.name[i])
+
+        # Update tf
+        translation = msg.pose[i].position
+        translation = (translation.x, translation.y, translation.z) # Needs to be a 3-tuple rather than an object
+        rospy.logdebug(translation)
+        rotation = msg.pose[i].orientation
+        rotation = (rotation.x, rotation.y, rotation.z, rotation.w) # Needs to be a 4-tuple rather than an object
+        rospy.logdebug(rotation)
+        time = rospy.get_rostime()
+        child = msg.name[i] + "_frame"
+        parent = "world"
+        tf.TransformBroadcaster().sendTransform(translation, rotation, time, child, parent)
 
 if __name__ == '__main__':
 
